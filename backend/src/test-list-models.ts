@@ -1,6 +1,6 @@
 import fetch from "node-fetch";
 
-const API_KEY = "AIzaSyDohkX7ZLt0OLtlYtwfcSPOS9dFqj_rjUI";
+const API_KEY = " ";
 
 async function listModels() {
     const res = await fetch(
