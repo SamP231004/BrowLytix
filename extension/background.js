@@ -1,4 +1,7 @@
 const readyTabs = new Set();
+const lastRequestTime = new Map()
+const urlCache = new Map()
+const REQUEST_COOLDOWN = 15_000 // 15 seconds per tab
 
 /* =======================
    Startup & Diagnostics
@@ -55,6 +58,36 @@ async function handlePageVisit(msg, sender) {
         return
     }
 
+    const tabId = sender.tab.id
+    const now = Date.now()
+
+    // ============================
+    // 1️⃣ DEBOUNCE (per tab)
+    // ============================
+    const last = lastRequestTime.get(tabId) || 0
+    if (now - last < REQUEST_COOLDOWN) {
+        console.warn("⏳ Skipping request (cooldown active)")
+        return
+    }
+    lastRequestTime.set(tabId, now)
+
+    // ============================
+    // 2️⃣ CACHE (per URL)
+    // ============================
+    if (urlCache.has(url)) {
+        console.log("📦 Using cached news for URL")
+
+        chrome.tabs.sendMessage(tabId, {
+            type: "SHOW_NEWS",
+            payload: urlCache.get(url)
+        })
+
+        return
+    }
+
+    // ============================
+    // 3️⃣ API KEY CHECK
+    // ============================
     const { geminiKey } = await chrome.storage.sync.get("geminiKey")
     if (!geminiKey) {
         console.warn("❌ Gemini key missing")
@@ -62,6 +95,9 @@ async function handlePageVisit(msg, sender) {
     }
 
     try {
+        // ============================
+        // 4️⃣ CALL BACKEND
+        // ============================
         const res = await fetch("http://localhost:4000/api/analyze", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -75,19 +111,27 @@ async function handlePageVisit(msg, sender) {
         const data = await res.json()
         console.log("📩 Backend response:", data)
 
-        if (!data.links || !data.links.length) return
+        if (!data.links || !data.links.length) {
+            console.warn("📰 No links returned from backend")
+            return
+        }
 
-        // 🔥 THIS IS WHERE YOUR CODE GOES 🔥
-        if (!readyTabs.has(sender.tab.id)) {
+        // Cache result
+        urlCache.set(url, data.links)
+
+        // ============================
+        // 5️⃣ SEND TO CONTENT SCRIPT
+        // ============================
+        if (!readyTabs.has(tabId)) {
             console.warn("⚠️ Content not ready yet, retrying...")
             setTimeout(() => {
-                chrome.tabs.sendMessage(sender.tab.id, {
+                chrome.tabs.sendMessage(tabId, {
                     type: "SHOW_NEWS",
                     payload: data.links
                 })
             }, 500)
         } else {
-            chrome.tabs.sendMessage(sender.tab.id, {
+            chrome.tabs.sendMessage(tabId, {
                 type: "SHOW_NEWS",
                 payload: data.links
             })
@@ -97,6 +141,7 @@ async function handlePageVisit(msg, sender) {
         console.error("❌ Page analyze failed:", err)
     }
 }
+
 
 /* =======================
    History Reader
