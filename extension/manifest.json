@@ -1,0 +1,29 @@
+{
+    "manifest_version": 3,
+    "name": "BrowLytix",
+    "version": "1.0",
+    "permissions": [
+        "notifications",
+        "storage",
+        "tabs"
+    ],
+    "optional_permissions": [
+        "history"
+    ],
+    "background": {
+        "service_worker": "background.js"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "<all_urls>"
+            ],
+            "js": [
+                "content.js"
+            ]
+        }
+    ],
+    "action": {
+        "default_popup": "popup.html"
+    }
+}
