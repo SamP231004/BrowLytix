@@ -3,6 +3,8 @@ const lastRequestTime = new Map()
 const urlCache = new Map()
 const REQUEST_COOLDOWN = 15_000 // 15 seconds per tab
 
+const API_BASE_URL = "https://brow-lytix.vercel.app"
+
 /* =======================
    Startup & Diagnostics
 ======================= */
@@ -98,15 +100,17 @@ async function handlePageVisit(msg, sender) {
         // ============================
         // 4️⃣ CALL BACKEND
         // ============================
-        const res = await fetch("http://localhost:4000/api/analyze", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                title,
-                url,
-                apiKey: geminiKey
-            })
-        })
+        const res = await fetch(`${API_BASE_URL}/api/analyze`,
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    title,
+                    url,
+                    apiKey: geminiKey,
+                }),
+            }
+        )
 
         const data = await res.json()
         console.log("📩 Backend response:", data)
@@ -175,7 +179,7 @@ async function readHistory() {
             if (!geminiKey) return
 
             try {
-                await fetch("http://localhost:4000/api/analyze", {
+                await fetch(`${API_BASE_URL}/api/analyze`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
