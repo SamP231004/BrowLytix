@@ -48,42 +48,46 @@ async function callGemini(
     return data.candidates?.[0]?.content?.parts?.[0]?.text ?? null;
 }
 
+async function sleepWithJitter(attempt: number) {
+    const baseDelay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s...
+    const jitter = Math.random() * 1000; 
+    return new Promise(res => setTimeout(res, baseDelay + jitter));
+}
+
 export async function fetchNewsLinks(
     keywords: string[],
     apiKey: string
 ): Promise<{ title: string; url: string }[]> {
 
-    const prompt = `
-        Return exactly 3 recent news articles related to:
-        ${keywords.join(", ")}
+    const prompt = `Return exactly 3 recent news articles related to: ${keywords.join(", ")}. 
+                    Respond ONLY in JSON format: [{"title": "string", "url": "string"}]`;
 
-        Respond ONLY in valid JSON:
-        [
-        { "title": "string", "url": "string" }
-        ]
-    `;
+    const MAX_TOTAL_ATTEMPTS = 5;
 
-    for (const model of MODELS) {
-        for (let attempt = 1; attempt <= 3; attempt++) {
-            console.log(`🔁 Trying ${model} (attempt ${attempt})`);
+    for (let attempt = 1; attempt <= MAX_TOTAL_ATTEMPTS; attempt++) {
+        // Interleave models: Attempt 1 uses Model A, Attempt 2 uses Model B...
+        const model = MODELS[attempt % MODELS.length];
+        
+        console.log(`🔁 Attempt ${attempt} using ${model}...`);
+        const text = await callGemini(model, prompt, apiKey);
 
-            const text = await callGemini(model, prompt, apiKey);
-
-            if (text) {
-                try {
-                    return JSON.parse(
-                        text.replace(/```json|```/g, "").trim()
-                    );
-                } catch {
-                    console.error("❌ JSON parse failed");
-                    return [];
-                }
+        if (text) {
+            try {
+                // Improved JSON extraction in case model adds markdown blocks
+                const jsonMatch = text.match(/\[[\s\S]*\]/);
+                const cleanJson = jsonMatch ? jsonMatch[0] : text;
+                return JSON.parse(cleanJson);
+            } catch (e) {
+                console.error("❌ JSON parse failed, retrying...");
             }
+        }
 
-            await sleep(1000 * attempt);
+        if (attempt < MAX_TOTAL_ATTEMPTS) {
+            console.warn(`⚠️ ${model} overloaded. Backing off...`);
+            await sleepWithJitter(attempt);
         }
     }
 
-    console.error("❌ All Gemini models overloaded");
+    console.error("❌ All attempts failed. Service remains overloaded.");
     return [];
 }
