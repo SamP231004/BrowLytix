@@ -2,13 +2,14 @@
     "manifest_version": 3,
     "name": "BrowLytix",
     "version": "1.0",
+    "description": "AI-powered browsing insights",
     "permissions": [
-        "notifications",
         "storage",
-        "tabs"
-    ],
-    "optional_permissions": [
+        "tabs",
         "history"
+    ],
+    "host_permissions": [
+        "<all_urls>"
     ],
     "background": {
         "service_worker": "background.js"
@@ -20,7 +21,8 @@
             ],
             "js": [
                 "content.js"
-            ]
+            ],
+            "run_at": "document_idle"
         }
     ],
     "action": {
