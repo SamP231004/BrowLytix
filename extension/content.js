@@ -1,61 +1,93 @@
-console.log("🧩 BrowLytix content script LOADED");
-
-// 🔥 Tell background we are ready
-chrome.runtime.sendMessage({ type: "CONTENT_READY" });
-
-// 🔥 SEND PAGE VISIT (THIS WAS MISSING)
-chrome.runtime.sendMessage({
-  type: "PAGE_VISIT",
-  title: document.title,
-  url: location.href
-});
-
-// Tell background we are ready
-chrome.runtime.sendMessage({ type: "CONTENT_READY" });
-
 chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.type !== "SHOW_NEWS") return;
+  if (msg.type !== "SHOW_NEWS") return
 
-  console.log("📰 SHOW_NEWS received in content.js", msg.payload);
+  document.getElementById("browlytix-panel")?.remove()
 
-  const links = msg.payload;
-  if (!links || !links.length) return;
+  const panel = document.createElement("div")
+  panel.id = "browlytix-panel"
 
-  document.getElementById("browlytix-panel")?.remove();
+  let body = ""
 
-  const panel = document.createElement("div");
-  panel.id = "browlytix-panel";
+  if (msg.payload === "OVERLOADED") {
+    body = `<p class="error">⚠️ AI is currently overloaded.<br/>Please try again later.</p>`
+  } else {
+    body = `
+      <ul>
+        ${msg.payload.map(l => `
+          <li><a href="${l.url}" target="_blank">${l.title}</a></li>
+        `).join("")}
+      </ul>
+    `
+  }
 
   panel.innerHTML = `
-    <div style="display:flex;justify-content:space-between;">
-      <strong>📰 Related News</strong>
-      <span id="browlytix-close" style="cursor:pointer">✕</span>
+    <div class="header">
+      <span>📰 Related News</span>
+      <button id="close">✕</button>
     </div>
-    <ul style="margin-top:8px;padding-left:16px;">
-      ${links.map(l => `
-        <li style="margin-bottom:6px">
-          <a href="${l.url}" target="_blank" style="color:#4da3ff">
-            ${l.title}
-          </a>
-        </li>
-      `).join("")}
-    </ul>
-  `;
+    ${body}
+  `
 
-  Object.assign(panel.style, {
-    position: "fixed",
-    top: "16px",
-    right: "16px",
-    width: "320px",
-    background: "#111",
-    color: "#fff",
-    padding: "12px",
-    borderRadius: "10px",
-    zIndex: 999999,
-    boxShadow: "0 10px 30px rgba(0,0,0,0.35)"
-  });
+  document.body.appendChild(panel)
 
-  document.body.appendChild(panel);
+  document.getElementById("close").onclick = () => {
+    panel.classList.add("hide")
+    setTimeout(() => panel.remove(), 200)
+  }
+})
 
-  document.getElementById("browlytix-close").onclick = () => panel.remove();
-});
+// Styles
+const style = document.createElement("style")
+style.textContent = `
+#browlytix-panel {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  width: 320px;
+  background: #121212;
+  color: white;
+  border-radius: 12px;
+  padding: 12px;
+  z-index: 999999;
+  animation: slideIn 0.3s ease;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+}
+
+#browlytix-panel.hide {
+  animation: slideOut 0.2s ease forwards;
+}
+
+#browlytix-panel .header {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+}
+
+#browlytix-panel ul {
+  padding-left: 16px;
+}
+
+#browlytix-panel li {
+  margin: 6px 0;
+}
+
+#browlytix-panel a {
+  color: #4da3ff;
+  text-decoration: none;
+}
+
+.error {
+  color: #ff8a8a;
+  font-size: 13px;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(120%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes slideOut {
+  to { transform: translateX(120%); opacity: 0; }
+}
+`
+document.head.appendChild(style)

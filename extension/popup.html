@@ -1,8 +1,32 @@
-<input id="key" placeholder="Gemini API Key" />
-<button id="save">Save API Key</button>
+<!DOCTYPE html>
+<html>
 
-<hr />
+<head>
+    <link rel="stylesheet" href="styles.css" />
+</head>
 
-<button id="history">Enable Browsing History Insights</button>
+<body>
+    <div class="card">
+        <h3>🔐 API Settings</h3>
 
-<script src="popup.js"></script>
+        <div class="input-group">
+            <input type="password" id="key" placeholder="Gemini / LLM API Key" disabled />
+            <span id="toggle" class="eye">👁</span>
+        </div>
+
+        <button id="edit">Edit API Key</button>
+        <button id="save" disabled>Save API Key</button>
+
+        <hr />
+
+        <button id="history" class="primary">
+            Enable Browsing Insights
+        </button>
+
+        <p id="status"></p>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+
+</html>

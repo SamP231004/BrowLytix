@@ -13,8 +13,11 @@ type GeminiResponse = {
 };
 
 const MODELS = [
-    "models/gemini-2.5-flash",
-    "models/gemini-2.0-flash-lite"
+    "models/gemini-3-flash",        // Newest, fastest, and most capable "Flash"
+    "models/gemini-2.5-flash",      // Reliable 2.5 series
+    "models/gemini-2.5-flash-lite", // Optimized for ultra-low latency
+    "models/gemini-2.0-flash",      // Previous generation (often less traffic now)
+    "models/gemini-1.5-flash",      // "Legacy" but extremely stable
 ];
 
 async function sleep(ms: number) {

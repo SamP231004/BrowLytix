@@ -1,0 +1,85 @@
+body {
+    margin: 0;
+    font-family: Inter, system-ui, sans-serif;
+    background: #0f0f0f;
+    color: #fff;
+}
+
+.card {
+    width: 260px;
+    padding: 14px;
+    border-radius: 12px;
+    background: #151515;
+    animation: fadeIn 0.3s ease;
+}
+
+h3 {
+    margin: 0 0 10px;
+    font-size: 16px;
+}
+
+.input-group {
+    position: relative;
+}
+
+input {
+    width: 100%;
+    padding: 8px;
+    border-radius: 8px;
+    border: none;
+    background: #222;
+    color: #fff;
+}
+
+.eye {
+    position: absolute;
+    right: 8px;
+    top: 8px;
+    cursor: pointer;
+    opacity: 0.7;
+}
+
+button {
+    width: 100%;
+    margin-top: 8px;
+    padding: 8px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    background: #2a2a2a;
+    color: white;
+}
+
+button.primary {
+    background: linear-gradient(135deg, #4da3ff, #6cf);
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+hr {
+    border: none;
+    height: 1px;
+    background: #333;
+    margin: 10px 0;
+}
+
+#status {
+    font-size: 12px;
+    opacity: 0.7;
+    margin-top: 6px;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
