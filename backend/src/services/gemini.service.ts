@@ -63,30 +63,40 @@ export async function fetchNewsLinks(
 ): Promise<{ title: string; url: string }[]> {
 
     const prompt = `
-        You are a news retrieval assistant.
+        You are a REAL-TIME news retrieval assistant.
 
-        Return EXACTLY 3 REAL, EXISTING, and CLICKABLE news article links
-        from ONLY the following trusted news websites:
+        Your task:
+        Return EXACTLY 3 REAL, EXISTING, and CURRENT news articles
+        published in the LAST 7 DAYS only.
 
+        Allowed news websites (STRICT):
         - https://www.thehindu.com
         - https://timesofindia.indiatimes.com
         - https://indianexpress.com
         - https://www.hindustantimes.com
         - https://www.bbc.com/news
 
-        Rules (VERY IMPORTANT):
-        - DO NOT invent or guess URLs
-        - ONLY return articles that actually exist on the website
-        - URLs must open successfully in a browser
-        - Articles must be relevant to: ${keywords.join(", ")}
+        VERY IMPORTANT RULES (NO EXCEPTIONS):
+        - DO NOT invent, guess, or hallucinate URLs
+        - ONLY return articles that are CURRENTLY LIVE and OPEN successfully
+        - Articles must be published within the last 7 days
+        - Avoid archived, expired, redirected, AMP-only, or removed pages
+        - Prefer URLs that contain a date or recent slug
+        - Each URL must belong EXACTLY to the allowed domains
+        - Articles must be clearly relevant to: ${keywords.join(", ")}
 
-        Respond ONLY in valid JSON array format:
+        If you are NOT 100% sure the article exists and is live:
+        ❌ DO NOT include it.
+
+        Response format (ONLY valid JSON, no extra text):
         [
-        { "title": "string", "url": "string" }
+        {
+            "title": "Exact article headline",
+            "url": "Direct clickable article URL"
+        }
         ]
-
-        No explanation. No extra text.
     `;
+
     const MAX_TOTAL_ATTEMPTS = 5;
 
     for (let attempt = 1; attempt <= MAX_TOTAL_ATTEMPTS; attempt++) {
