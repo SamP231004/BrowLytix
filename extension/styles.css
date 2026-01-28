@@ -1,21 +1,29 @@
 body {
     margin: 0;
-    font-family: Inter, system-ui, sans-serif;
+    padding: 0;
+    font-family: Inter, system-ui, -apple-system, sans-serif;
     background: #0f0f0f;
     color: #fff;
 }
 
 .card {
-    width: 260px;
-    padding: 14px;
-    border-radius: 12px;
+    width: 280px;
+    padding: 16px;
+    border-radius: 14px;
     background: #151515;
-    animation: fadeIn 0.3s ease;
+    animation: fadeIn 0.25s ease;
 }
 
 h3 {
-    margin: 0 0 10px;
+    margin: 0;
     font-size: 16px;
+    font-weight: 600;
+}
+
+.subtitle {
+    font-size: 12px;
+    opacity: 0.7;
+    margin: 4px 0 12px;
 }
 
 .input-group {
@@ -24,38 +32,62 @@ h3 {
 
 input {
     width: 100%;
-    padding: 8px;
-    border-radius: 8px;
+    padding: 9px 34px 9px 10px;
+    border-radius: 9px;
     border: none;
     background: #222;
     color: #fff;
+    font-size: 13px;
+    outline: none;
 }
 
 .eye {
     position: absolute;
-    right: 8px;
+    right: 10px;
     top: 8px;
     cursor: pointer;
-    opacity: 0.7;
+    opacity: 0.6;
+    user-select: none;
+}
+
+.eye:hover {
+    opacity: 1;
+}
+
+.actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
 }
 
 button {
-    width: 100%;
-    margin-top: 8px;
-    padding: 8px;
-    border-radius: 8px;
+    flex: 1;
+    padding: 9px;
+    border-radius: 9px;
     border: none;
     cursor: pointer;
     background: #2a2a2a;
     color: white;
+    font-size: 13px;
 }
 
 button.primary {
     background: linear-gradient(135deg, #4da3ff, #6cf);
+    color: #000;
+    font-weight: 600;
+}
+
+button.secondary {
+    background: #1f1f1f;
+}
+
+button.clean {
+    width: 100%;
+    margin-top: 0;
 }
 
 button:disabled {
-    opacity: 0.5;
+    opacity: 0.45;
     cursor: not-allowed;
 }
 
@@ -63,23 +95,24 @@ hr {
     border: none;
     height: 1px;
     background: #333;
-    margin: 10px 0;
+    margin: 14px 0;
 }
 
 #status {
     font-size: 12px;
-    opacity: 0.7;
-    margin-top: 6px;
+    opacity: 0.75;
+    margin-top: 8px;
+    min-height: 14px;
 }
 
 @keyframes fadeIn {
     from {
         opacity: 0;
-        transform: scale(0.95);
+        transform: translateY(4px) scale(0.98);
     }
 
     to {
         opacity: 1;
-        transform: scale(1);
+        transform: translateY(0) scale(1);
     }
 }

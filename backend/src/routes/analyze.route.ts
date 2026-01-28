@@ -7,10 +7,12 @@ const router = Router()
 
 router.post("/", async (req, res) => {
     try {
-        const { title, history, apiKey } = req.body
+        const { title, history, newsApiKey } = req.body
 
-        if (!apiKey) {
-            return res.status(400).json({ error: "Missing Google News API key" })
+        if (!newsApiKey) {
+            return res.status(400).json({
+                error: "Missing Google News API key"
+            })
         }
 
         let keywords: string[] = []
@@ -24,7 +26,7 @@ router.post("/", async (req, res) => {
         // 🔹 Case 2: Browsing history
         if (Array.isArray(history)) {
             const titles = history
-                .map((p) => sanitizeText(p.title || ""))
+                .map(p => sanitizeText(p.title || ""))
                 .join(" ")
 
             keywords = extractKeywords(titles)
@@ -36,7 +38,7 @@ router.post("/", async (req, res) => {
 
         console.log("🧠 Extracted keywords:", keywords)
 
-        const links = await fetchNewsLinks(keywords, apiKey)
+        const links = await fetchNewsLinks(keywords, newsApiKey)
 
         console.log("📰 Final links:", links)
 

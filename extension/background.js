@@ -1,4 +1,4 @@
-const readyTabs = new Set();
+const readyTabs = new Set()
 const lastRequestTime = new Map()
 const urlCache = new Map()
 const REQUEST_COOLDOWN = 15_000 // 15 seconds per tab
@@ -9,10 +9,10 @@ const API_BASE_URL = "https://brow-lytix.vercel.app"
    Startup & Diagnostics
 ======================= */
 
-chrome.storage.sync.get("geminiKey", (data) => {
+chrome.storage.sync.get("newsApiKey", (data) => {
     console.log(
-        "🔑 Gemini key on startup:",
-        data.geminiKey ? "FOUND" : "NOT FOUND"
+        "🗞️ Google News API key on startup:",
+        data.newsApiKey ? "FOUND" : "NOT FOUND"
     )
 })
 
@@ -37,10 +37,10 @@ chrome.runtime.onMessage.addListener(async (msg, sender) => {
 
         case "CONTENT_READY":
             if (sender.tab?.id) {
-                console.log("🧩 Content ready for tab", sender.tab.id);
-                readyTabs.add(sender.tab.id);
+                console.log("🧩 Content ready for tab", sender.tab.id)
+                readyTabs.add(sender.tab.id)
             }
-            break;
+            break
 
         default:
             // ignore
@@ -90,9 +90,9 @@ async function handlePageVisit(msg, sender) {
     // ============================
     // 3️⃣ API KEY CHECK
     // ============================
-    const { geminiKey } = await chrome.storage.sync.get("geminiKey")
-    if (!geminiKey) {
-        console.warn("❌ Gemini key missing")
+    const { newsApiKey } = await chrome.storage.sync.get("newsApiKey")
+    if (!newsApiKey) {
+        console.warn("❌ Google News API key missing")
         return
     }
 
@@ -100,17 +100,15 @@ async function handlePageVisit(msg, sender) {
         // ============================
         // 4️⃣ CALL BACKEND
         // ============================
-        const res = await fetch(`${API_BASE_URL}/api/analyze`,
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    title,
-                    url,
-                    apiKey: geminiKey,
-                }),
-            }
-        )
+        const res = await fetch(`${API_BASE_URL}/api/analyze`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                title,
+                url,
+                newsApiKey,
+            }),
+        })
 
         const data = await res.json()
         console.log("📩 Backend response:", data)
@@ -146,7 +144,6 @@ async function handlePageVisit(msg, sender) {
     }
 }
 
-
 /* =======================
    History Reader
 ======================= */
@@ -175,8 +172,8 @@ async function readHistory() {
 
             console.log("📚 Sending history to backend:", pages.length)
 
-            const { geminiKey } = await chrome.storage.sync.get("geminiKey")
-            if (!geminiKey) return
+            const { newsApiKey } = await chrome.storage.sync.get("newsApiKey")
+            if (!newsApiKey) return
 
             try {
                 await fetch(`${API_BASE_URL}/api/analyze`, {
@@ -184,7 +181,7 @@ async function readHistory() {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         history: pages,
-                        apiKey: geminiKey
+                        newsApiKey
                     })
                 })
             } catch (err) {

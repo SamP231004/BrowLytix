@@ -1,25 +1,32 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
+    <meta charset="UTF-8" />
+    <title>BrowLytix Settings</title>
     <link rel="stylesheet" href="styles.css" />
 </head>
 
 <body>
     <div class="card">
-        <h3>🔐 API Settings</h3>
+        <h3>🗞️ News API Settings</h3>
+        <p class="subtitle">
+            Used to fetch real-time related news articles
+        </p>
 
         <div class="input-group">
-            <input type="password" id="key" placeholder="Gemini / LLM API Key" disabled />
-            <span id="toggle" class="eye">👁</span>
+            <input type="password" id="key" placeholder="Enter Google News API key" disabled />
+            <span id="toggle" class="eye" title="Show / hide key">👁</span>
         </div>
 
-        <button id="edit">Edit API Key</button>
-        <button id="save" disabled>Save API Key</button>
+        <div class="actions">
+            <button id="edit">Edit</button>
+            <button id="save" disabled class="primary">Save</button>
+        </div>
 
         <hr />
 
-        <button id="history" class="primary">
+        <button id="history" class="secondary clean">
             Enable Browsing Insights
         </button>
 
