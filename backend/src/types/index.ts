@@ -11,7 +11,7 @@ export interface AnalyzeRequestBody {
     // Optional browsing history
     history?: PageContext[]
 
-    // User-provided Gemini API key
+    // User-provided Google News API key
     apiKey: string
 }
 

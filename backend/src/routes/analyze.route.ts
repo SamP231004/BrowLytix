@@ -1,6 +1,6 @@
 import { Router } from "express"
 import { extractKeywords } from "../services/keyword.service.js"
-import { fetchNewsLinks } from "../services/gemini.service.js"
+import { fetchNewsLinks } from "../services/googleNews.js"
 import { sanitizeText } from "../utils/sanitize.js"
 
 const router = Router()
@@ -10,7 +10,7 @@ router.post("/", async (req, res) => {
         const { title, history, apiKey } = req.body
 
         if (!apiKey) {
-            return res.status(400).json({ error: "Missing Gemini API key" })
+            return res.status(400).json({ error: "Missing Google News API key" })
         }
 
         let keywords: string[] = []
