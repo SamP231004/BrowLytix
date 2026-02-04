@@ -1,51 +1,60 @@
 import { Router } from "express"
-import { extractKeywords } from "../services/keyword.service.js"
-import { fetchNewsLinks } from "../services/googleNews.js"
 import { sanitizeText } from "../utils/sanitize.js"
+import { textToVector } from "../ai/vectorizer.js"
+import { assignCategory } from "../ai/category.engine.js"
+import { fetchNewsLinks } from "../services/googleNews.js"
 
 const router = Router()
 
 router.post("/", async (req, res) => {
     try {
-        const { title, history, newsApiKey } = req.body
+        const { userId, title, url, history, apiKey } = req.body
 
-        if (!newsApiKey) {
-            return res.status(400).json({
-                error: "Missing Google News API key"
-            })
+        if (!userId) {
+            return res.status(400).json({ error: "Missing userId" })
         }
 
-        let keywords: string[] = []
-
-        // 🔹 Case 1: Single page visit
-        if (title) {
-            const cleanTitle = sanitizeText(title)
-            keywords = extractKeywords(cleanTitle)
+        if (!apiKey) {
+            return res.status(400).json({ error: "Missing News API key" })
         }
 
-        // 🔹 Case 2: Browsing history
+        let combinedText = ""
+
+        if (title) combinedText += " " + sanitizeText(title)
+        if (url) combinedText += " " + sanitizeText(url)
+
         if (Array.isArray(history)) {
-            const titles = history
-                .map(p => sanitizeText(p.title || ""))
+            combinedText += " " + history
+                .map(h => sanitizeText(h.title || ""))
                 .join(" ")
-
-            keywords = extractKeywords(titles)
         }
 
-        if (!keywords.length) {
-            return res.json({ keywords: [], links: [] })
+        if (!combinedText.trim()) {
+            return res.json({ category: null, links: [] })
         }
 
-        console.log("🧠 Extracted keywords:", keywords)
+        const vector = textToVector(combinedText)
 
-        const links = await fetchNewsLinks(keywords, newsApiKey)
+        // 🧠 PERSONAL AI MEMORY
+        const { category, isNew } = await assignCategory(userId, vector)
 
-        console.log("📰 Final links:", links)
+        const keywords = combinedText
+            .toLowerCase()
+            .split(/\s+/)
+            .slice(0, 5)
 
-        res.json({ keywords, links })
+        const links = await fetchNewsLinks(keywords, apiKey)
+
+        res.json({
+            userId,
+            categoryId: category.id,
+            isNewCategory: isNew,
+            links
+        })
+
     } catch (err) {
         console.error("❌ Analyze error:", err)
-        res.status(500).json({ error: "Failed to process request" })
+        res.status(500).json({ error: "Server error" })
     }
 })
 
