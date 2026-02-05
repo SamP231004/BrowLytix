@@ -41,7 +41,8 @@ router.post("/", async (req, res) => {
         const keywords = combinedText
             .toLowerCase()
             .split(/\s+/)
-            .slice(0, 5)
+            .filter(w => w.length > 3)
+            .slice(0, 8)
 
         const links = await fetchNewsLinks(keywords, apiKey)
 
@@ -49,6 +50,7 @@ router.post("/", async (req, res) => {
             userId,
             categoryId: category.id,
             isNewCategory: isNew,
+            keywords,
             links
         })
 

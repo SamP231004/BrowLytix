@@ -1,14 +1,25 @@
 const readyTabs = new Set()
-const lastRequestTime = new Map()
 const urlCache = new Map()
-const REQUEST_COOLDOWN = 15_000 // 15 seconds per tab
 
 const API_BASE_URL = "https://brow-lytix.vercel.app"
+// const API_BASE_URL = "http://localhost:4000"
+
+/* =======================
+   USER ID (PERSONALIZATION)
+======================= */
+async function getUserId() {
+    const { userId } = await chrome.storage.local.get("userId")
+    if (userId) return userId
+
+    const newId = "user_" + crypto.randomUUID()
+    await chrome.storage.local.set({ userId: newId })
+    console.log("🧠 Generated new userId:", newId)
+    return newId
+}
 
 /* =======================
    Startup & Diagnostics
 ======================= */
-
 chrome.storage.sync.get("newsApiKey", (data) => {
     console.log(
         "🗞️ Google News API key on startup:",
@@ -21,13 +32,11 @@ chrome.runtime.onInstalled.addListener(() => {
 })
 
 /* =======================
-   Message Router (SINGLE)
+   Message Router
 ======================= */
-
 chrome.runtime.onMessage.addListener(async (msg, sender) => {
     switch (msg.type) {
         case "READ_HISTORY":
-            console.log("📚 READ_HISTORY triggered from popup")
             readHistory()
             break
 
@@ -37,13 +46,11 @@ chrome.runtime.onMessage.addListener(async (msg, sender) => {
 
         case "CONTENT_READY":
             if (sender.tab?.id) {
-                console.log("🧩 Content ready for tab", sender.tab.id)
                 readyTabs.add(sender.tab.id)
             }
             break
 
         default:
-            // ignore
             break
     }
 })
@@ -51,92 +58,62 @@ chrome.runtime.onMessage.addListener(async (msg, sender) => {
 /* =======================
    Page Visit Handler
 ======================= */
-
 async function handlePageVisit(msg, sender) {
     const { title, url } = msg
-
-    if (!sender.tab || !sender.tab.id) {
-        console.warn("⚠️ No tab info, cannot show UI")
-        return
-    }
+    if (!sender.tab || !sender.tab.id) return
 
     const tabId = sender.tab.id
-    const now = Date.now()
 
-    // ============================
-    // 1️⃣ DEBOUNCE (per tab)
-    // ============================
-    const last = lastRequestTime.get(tabId) || 0
-    if (now - last < REQUEST_COOLDOWN) {
-        console.warn("⏳ Skipping request (cooldown active)")
-        return
-    }
-    lastRequestTime.set(tabId, now)
-
-    // ============================
-    // 2️⃣ CACHE (per URL)
-    // ============================
+    // 🔹 URL cache
     if (urlCache.has(url)) {
-        console.log("📦 Using cached news for URL")
-
         chrome.tabs.sendMessage(tabId, {
             type: "SHOW_NEWS",
-            payload: urlCache.get(url)
+            payload: {
+                type: "links",
+                data: urlCache.get(url)
+            }
         })
-
         return
     }
 
-    // ============================
-    // 3️⃣ API KEY CHECK
-    // ============================
     const { newsApiKey } = await chrome.storage.sync.get("newsApiKey")
-    if (!newsApiKey) {
-        console.warn("❌ Google News API key missing")
-        return
-    }
+    if (!newsApiKey) return
 
     try {
-        // ============================
-        // 4️⃣ CALL BACKEND
-        // ============================
+        const userId = await getUserId()
+
         const res = await fetch(`${API_BASE_URL}/api/analyze`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+                userId,
                 title,
                 url,
-                newsApiKey,
-            }),
+                apiKey: newsApiKey
+            })
         })
 
         const data = await res.json()
-        console.log("📩 Backend response:", data)
+        console.log("📩 FULL backend response:", JSON.stringify(data, null, 2))
 
-        if (!data.links || !data.links.length) {
-            console.warn("📰 No links returned from backend")
-            return
-        }
+        if (!data.links || !data.links.length) return
 
-        // Cache result
         urlCache.set(url, data.links)
 
-        // ============================
-        // 5️⃣ SEND TO CONTENT SCRIPT
-        // ============================
+        const message = {
+            type: "SHOW_NEWS",
+            payload: {
+                type: "links",
+                data: data.links
+            }
+        }
+
         if (!readyTabs.has(tabId)) {
-            console.warn("⚠️ Content not ready yet, retrying...")
             setTimeout(() => {
-                chrome.tabs.sendMessage(tabId, {
-                    type: "SHOW_NEWS",
-                    payload: data.links
-                })
-            }, 500)
+                chrome.tabs.sendMessage(tabId, message)
+            }, 300)
         } else {
-            chrome.tabs.sendMessage(tabId, {
-                type: "SHOW_NEWS",
-                payload: data.links
-            })
+            chrome.tabs.sendMessage(tabId, message)
         }
 
     } catch (err) {
@@ -147,16 +124,11 @@ async function handlePageVisit(msg, sender) {
 /* =======================
    History Reader
 ======================= */
-
 async function readHistory() {
     const hasPermission = await chrome.permissions.contains({
         permissions: ["history"]
     })
-
-    if (!hasPermission) {
-        console.warn("❌ History permission not granted")
-        return
-    }
+    if (!hasPermission) return
 
     chrome.history.search(
         {
@@ -170,18 +142,19 @@ async function readHistory() {
                 url: item.url || ""
             }))
 
-            console.log("📚 Sending history to backend:", pages.length)
-
             const { newsApiKey } = await chrome.storage.sync.get("newsApiKey")
             if (!newsApiKey) return
 
             try {
+                const userId = await getUserId()
+
                 await fetch(`${API_BASE_URL}/api/analyze`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
+                        userId,
                         history: pages,
-                        newsApiKey
+                        apiKey: newsApiKey
                     })
                 })
             } catch (err) {
