@@ -8,3 +8,4 @@ vault.json
 *.tmp
 out/
 node_modules/
+venv/
