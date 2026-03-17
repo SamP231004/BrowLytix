@@ -1071,4 +1071,31 @@
   </script>
 </body>
 
+<script type="module">
+  import { updateNews } from "./news.js";
+
+  const input = document.getElementById("goalInput");
+
+  // Trigger news when user types
+  input.addEventListener("input", (e) => {
+    updateNews(e.target.value);
+  });
+
+  // Trigger when executing goal
+  window.executeGoal = function () {
+    const goal = input.value.trim();
+    if (!goal) return;
+
+    updateNews(goal);
+
+    // existing logic
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      alert('Disconnected from Orchestrator.');
+      return;
+    }
+
+    ws.send(JSON.stringify({ action: 'execute_goal', goal }));
+  };
+</script>
+
 </html>
