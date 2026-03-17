@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agentic OS Browser</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #0d1b2a;
+    color: #e2e8f0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ── */
+  .header {
+    background: #0a1628;
+    border-bottom: 2px solid #1565c0;
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .logo { font-size: 20px; font-weight: 700; color: #90caf9; letter-spacing: 1px; }
+  .version { font-size: 11px; color: #546e7a; background: #1a2a3a; padding: 2px 8px; border-radius: 10px; }
+  .status-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #ef5350; margin-left: auto;
+    box-shadow: 0 0 6px #ef5350;
+    transition: all 0.3s;
+  }
+  .status-dot.connected { background: #66bb6a; box-shadow: 0 0 8px #66bb6a; }
+  .status-label { font-size: 12px; color: #546e7a; }
+
+  /* ── Intent Bar ── */
+  .intent-section {
+    background: #0f1e30;
+    padding: 20px 24px;
+    border-bottom: 1px solid #1a2a3a;
+  }
+  .intent-label {
+    font-size: 11px; color: #546e7a;
+    text-transform: uppercase; letter-spacing: 1px;
+    margin-bottom: 10px;
+  }
+  .intent-row { display: flex; gap: 10px; }
+  .intent-input {
+    flex: 1;
+    background: #1a2a3a;
+    border: 1px solid #1565c0;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 15px;
+    color: #e2e8f0;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .intent-input:focus { border-color: #42a5f5; box-shadow: 0 0 0 3px rgba(66,165,245,0.15); }
+  .intent-input::placeholder { color: #37474f; }
+  .btn-execute {
+    background: #1565c0;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 28px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    white-space: nowrap;
+  }
+  .btn-execute:hover { background: #1976d2; }
+  .btn-execute:disabled { background: #1a2a3a; color: #37474f; cursor: not-allowed; }
+  .btn-cancel {
+    background: #b71c1c;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 20px;
+    font-size: 14px;
+    cursor: pointer;
+    display: none;
+  }
+  .btn-cancel.visible { display: block; }
+
+  /* ── Progress ── */
+  .progress-bar-wrap {
+    height: 3px;
+    background: #1a2a3a;
+    overflow: hidden;
+  }
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #1565c0, #42a5f5);
+    width: 0%;
+    transition: width 0.4s ease;
+  }
+
+  /* ── Status line ── */
+  .status-line {
+    padding: 8px 24px;
+    font-size: 12px;
+    color: #546e7a;
+    background: #0a1628;
+    border-bottom: 1px solid #1a2a3a;
+    min-height: 30px;
+  }
+  .status-line.running { color: #42a5f5; }
+  .status-line.done    { color: #66bb6a; }
+  .status-line.error   { color: #ef5350; }
+
+  /* ── Main layout ── */
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  /* ── DAG panel ── */
+  .dag-panel {
+    width: 340px;
+    min-width: 280px;
+    background: #0a1628;
+    border-right: 1px solid #1a2a3a;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .panel-title {
+    padding: 12px 16px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #546e7a;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid #1a2a3a;
+  }
+  .dag-tasks { flex: 1; overflow-y: auto; padding: 12px; }
+  .task-card {
+    background: #1a2a3a;
+    border: 1px solid #2a3a4a;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    transition: all 0.3s;
+  }
+  .task-card.running { border-color: #1565c0; box-shadow: 0 0 8px rgba(21,101,192,0.4); }
+  .task-card.complete { border-color: #2e7d32; background: #0d2a10; }
+  .task-card.failed   { border-color: #b71c1c; background: #2a0d0d; }
+  .task-card.retrying { border-color: #e65100; }
+  .task-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .task-id { font-size: 11px; color: #546e7a; font-family: monospace; }
+  .task-type {
+    font-size: 10px; padding: 1px 7px; border-radius: 10px;
+    background: #1565c0; color: white; margin-left: auto;
+  }
+  .task-name { font-size: 13px; font-weight: 500; color: #e2e8f0; }
+  .task-meta { font-size: 11px; color: #546e7a; margin-top: 4px; }
+  .task-state {
+    display: inline-block; font-size: 10px; padding: 1px 7px;
+    border-radius: 10px; margin-top: 4px;
+    background: #2a3a4a; color: #546e7a;
+  }
+  .task-card.running  .task-state { background: #1565c0; color: white; }
+  .task-card.complete .task-state { background: #2e7d32; color: white; }
+  .task-card.failed   .task-state { background: #b71c1c; color: white; }
+  .task-card.retrying .task-state { background: #e65100; color: white; }
+
+  /* ── Result panel ── */
+  .result-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .result-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+  }
+  .result-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #37474f;
+    text-align: center;
+    gap: 12px;
+  }
+  .result-empty .icon { font-size: 48px; }
+  .result-empty p { font-size: 14px; line-height: 1.6; max-width: 400px; }
+
+  .result-block {
+    background: #0f1e30;
+    border: 1px solid #1a2a3a;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .result-block h3 {
+    font-size: 14px;
+    color: #90caf9;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #1a2a3a;
+  }
+  .result-content {
+    font-size: 13px;
+    line-height: 1.7;
+    color: #cdd5e0;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .result-meta {
+    margin-top: 12px;
+    font-size: 11px;
+    color: #546e7a;
+  }
+
+  /* ── Event log ── */
+  .log-panel {
+    height: 160px;
+    background: #050e1a;
+    border-top: 1px solid #1a2a3a;
+    overflow-y: auto;
+    padding: 8px 16px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+  }
+  .log-entry { padding: 2px 0; line-height: 1.5; }
+  .log-entry.info    { color: #546e7a; }
+  .log-entry.success { color: #66bb6a; }
+  .log-entry.warn    { color: #ffa726; }
+  .log-entry.error   { color: #ef5350; }
+  .log-entry.event   { color: #42a5f5; }
+
+  /* ── Connection panel ── */
+  .connect-panel {
+    background: #0f1e30;
+    border: 1px solid #1565c0;
+    border-radius: 10px;
+    padding: 20px;
+    margin: 20px 24px;
+    display: none;
+  }
+  .connect-panel.visible { display: block; }
+  .connect-panel h3 { color: #42a5f5; margin-bottom: 10px; }
+  .connect-panel p  { font-size: 13px; color: #90a4ae; line-height: 1.6; }
+
+  /* ── Examples ── */
+  .examples {
+    padding: 0 24px 16px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .example-chip {
+    background: #1a2a3a;
+    border: 1px solid #2a3a4a;
+    border-radius: 16px;
+    padding: 5px 14px;
+    font-size: 12px;
+    color: #90a4ae;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .example-chip:hover { background: #1565c0; color: white; border-color: #1565c0; }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #0a1628; }
+  ::-webkit-scrollbar-thumb { background: #1a2a3a; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="logo">⚡ AGENTIC OS BROWSER</div>
+  <div class="version">v1.0.0</div>
+  <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+    <div class="status-label" id="statusLabel">Disconnected</div>
+    <div class="status-dot" id="statusDot"></div>
+  </div>
+</div>
+
+<!-- Intent Bar -->
+<div class="intent-section">
+  <div class="intent-label">What do you want to accomplish?</div>
+  <div class="intent-row">
+    <input class="intent-input" id="goalInput"
+      placeholder="e.g. Research the top 5 EV competitors and create a comparison chart"
+      disabled />
+    <button class="btn-execute" id="btnExecute" disabled onclick="executeGoal()">Execute</button>
+    <button class="btn-cancel" id="btnCancel" onclick="cancelWorkflow()">Cancel</button>
+  </div>
+</div>
+
+<!-- Examples -->
+<div class="examples" id="examples">
+  <div class="example-chip" onclick="setExample(this)">Summarise the latest AI news</div>
+  <div class="example-chip" onclick="setExample(this)">Write a Python script to sort a CSV by date</div>
+  <div class="example-chip" onclick="setExample(this)">Compare cloud providers AWS vs GCP vs Azure</div>
+  <div class="example-chip" onclick="setExample(this)">Research Tesla competitors and build a market share chart</div>
+  <div class="example-chip" onclick="setExample(this)">Find the top 10 Python libraries for data science</div>
+</div>
+
+<!-- Progress bar -->
+<div class="progress-bar-wrap"><div class="progress-bar" id="progressBar"></div></div>
+
+<!-- Status line -->
+<div class="status-line" id="statusLine">Connecting to Orchestrator on ws://localhost:7771 ...</div>
+
+<!-- Main -->
+<div class="main">
+
+  <!-- DAG Panel -->
+  <div class="dag-panel">
+    <div class="panel-title">📋 Workflow Tasks</div>
+    <div class="dag-tasks" id="dagTasks">
+      <div style="text-align:center; color:#37474f; padding:40px 16px; font-size:13px;">
+        Tasks will appear here when a goal is executed
+      </div>
+    </div>
+  </div>
+
+  <!-- Result Panel -->
+  <div class="result-panel">
+    <div class="result-area" id="resultArea">
+      <div class="result-empty" id="resultEmpty">
+        <div class="icon">🤖</div>
+        <p>Type a goal above and click <strong>Execute</strong>.<br>
+        The AI will break it into tasks, run them in parallel inside Docker containers,
+        and stream results here in real time.</p>
+      </div>
+    </div>
+    <div class="log-panel" id="logPanel"></div>
+  </div>
+
+</div>
+
+<script>
+  let ws = null;
+  let sessionId = null;
+  let taskCount = 0;
+  let completedCount = 0;
+  let reconnectTimer = null;
+
+  // ── Connect to Orchestrator ───────────────────────────────────────────────
+  function connect() {
+    addLog('Connecting to ws://localhost:7771...', 'info');
+    try {
+      ws = new WebSocket('ws://localhost:7771');
+    } catch(e) {
+      addLog('WebSocket not supported in this context. Open via a browser directly.', 'error');
+      return;
+    }
+
+    ws.onopen = () => {
+      document.getElementById('statusDot').classList.add('connected');
+      document.getElementById('statusLabel').textContent = 'Connected';
+      document.getElementById('goalInput').disabled = false;
+      document.getElementById('btnExecute').disabled = false;
+      setStatus('Connected to Orchestrator. Ready.', 'done');
+      addLog('Connected to Orchestrator on ws://localhost:7771', 'success');
+      if (reconnectTimer) { clearInterval(reconnectTimer); reconnectTimer = null; }
+    };
+
+    ws.onclose = () => {
+      document.getElementById('statusDot').classList.remove('connected');
+      document.getElementById('statusLabel').textContent = 'Disconnected';
+      document.getElementById('goalInput').disabled = true;
+      document.getElementById('btnExecute').disabled = true;
+      setStatus('Disconnected. Make sure the Orchestrator window is running. Retrying...', 'error');
+      addLog('Connection lost. Retrying in 3s...', 'warn');
+      reconnectTimer = setTimeout(connect, 3000);
+    };
+
+    ws.onerror = () => {
+      addLog('Cannot reach ws://localhost:7771 — is main.py running?', 'error');
+    };
+
+    ws.onmessage = (evt) => {
+      try {
+        const msg = JSON.parse(evt.data);
+        handleEvent(msg);
+      } catch(e) {
+        addLog('Bad message: ' + evt.data, 'warn');
+      }
+    };
+  }
+
+  // ── Handle Orchestrator events ────────────────────────────────────────────
+  function handleEvent(msg) {
+    const type = msg.event_type || msg.type;
+    const data = msg.data || {};
+    addLog(`EVENT: ${type}`, 'event');
+
+    switch(type) {
+
+      case 'session_started':
+        sessionId = data.session_id || msg.session_id;
+        setStatus('Session started — analysing intent...', 'running');
+        setProgress(5);
+        break;
+
+      case 'parsing_intent':
+        setStatus('Analysing your goal...', 'running');
+        setProgress(15);
+        break;
+
+      case 'building_dag':
+        setStatus(`Building workflow plan (domain: ${data.domain || 'general'})...`, 'running');
+        setProgress(25);
+        break;
+
+      case 'dag_ready':
+        const tasks = data.tasks || [];
+        taskCount = tasks.length;
+        completedCount = 0;
+        renderDAG(tasks);
+        setStatus(`Workflow ready — ${taskCount} tasks scheduled. Executing...`, 'running');
+        setProgress(35);
+        document.getElementById('resultEmpty').style.display = 'none';
+        document.getElementById('btnCancel').classList.add('visible');
+        break;
+
+      case 'task_started':
+        updateTaskCard(data.task_id, 'running', 'Running...');
+        setProgress(35 + Math.round((completedCount / Math.max(taskCount,1)) * 50));
+        break;
+
+      case 'task_complete':
+        completedCount++;
+        updateTaskCard(data.task_id, 'complete', `Done in ${data.duration_ms || '?'}ms`);
+        setProgress(35 + Math.round((completedCount / Math.max(taskCount,1)) * 55));
+        break;
+
+      case 'task_failed':
+        updateTaskCard(data.task_id, 'failed', `Failed: ${data.error || 'unknown error'}`);
+        addLog(`Task ${data.task_id} failed: ${data.error}`, 'error');
+        break;
+
+      case 'task_retrying':
+        updateTaskCard(data.task_id, 'retrying', `Retrying (${data.attempt}/${data.max_retries})...`);
+        break;
+
+      case 'workflow_complete':
+        setProgress(100);
+        setStatus(`Workflow complete in ${data.total_duration_ms || '?'}ms`, 'done');
+        document.getElementById('btnCancel').classList.remove('visible');
+        document.getElementById('btnExecute').disabled = false;
+        document.getElementById('goalInput').disabled = false;
+        renderResults(data);
+        addLog('Workflow complete.', 'success');
+        break;
+
+      case 'pipeline_error':
+        setStatus(`Error: ${data.error || 'unknown'}`, 'error');
+        document.getElementById('btnCancel').classList.remove('visible');
+        document.getElementById('btnExecute').disabled = false;
+        document.getElementById('goalInput').disabled = false;
+        addLog(`Pipeline error: ${data.error}`, 'error');
+        break;
+
+      case 'workflow_cancelled':
+        setStatus('Workflow cancelled.', '');
+        document.getElementById('btnCancel').classList.remove('visible');
+        document.getElementById('btnExecute').disabled = false;
+        document.getElementById('goalInput').disabled = false;
+        break;
+
+      default:
+        addLog(`Unhandled event: ${type}`, 'info');
+    }
+  }
+
+  // ── Execute goal ──────────────────────────────────────────────────────────
+  function executeGoal() {
+    const goal = document.getElementById('goalInput').value.trim();
+    if (!goal) { alert('Please enter a goal first.'); return; }
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      alert('Not connected to Orchestrator. Make sure main.py is running.'); return;
+    }
+
+    // Reset UI
+    document.getElementById('dagTasks').innerHTML = '<div style="text-align:center;color:#37474f;padding:20px;font-size:12px;">Building workflow...</div>';
+    document.getElementById('resultArea').innerHTML = '<div class="result-empty" id="resultEmpty" style="display:flex"><div class="icon">⚙️</div><p>Executing workflow...</p></div>';
+    document.getElementById('logPanel').innerHTML = '';
+    setProgress(0);
+    document.getElementById('btnExecute').disabled = true;
+    document.getElementById('goalInput').disabled = true;
+
+    ws.send(JSON.stringify({ action: 'execute_goal', goal: goal }));
+    addLog(`Goal sent: "${goal}"`, 'event');
+    setStatus('Goal submitted — waiting for response...', 'running');
+  }
+
+  // ── Cancel ────────────────────────────────────────────────────────────────
+  function cancelWorkflow() {
+    if (ws && sessionId) {
+      ws.send(JSON.stringify({ action: 'cancel_workflow', session_id: sessionId }));
+      addLog('Cancel requested.', 'warn');
+    }
+  }
+
+  // ── Render DAG task cards ─────────────────────────────────────────────────
+  function renderDAG(tasks) {
+    const container = document.getElementById('dagTasks');
+    container.innerHTML = '';
+    tasks.forEach(t => {
+      const card = document.createElement('div');
+      card.className = 'task-card';
+      card.id = 'task-' + t.id;
+      card.innerHTML = `
+        <div class="task-header">
+          <span class="task-id">${t.id}</span>
+          <span class="task-type">${t.type || 'task'}</span>
+        </div>
+        <div class="task-name">${t.description || t.id}</div>
+        <div class="task-meta">${t.inputs && t.inputs.length ? 'Depends on: ' + t.inputs.join(', ') : 'No dependencies'}</div>
+        <span class="task-state">pending</span>
+      `;
+      container.appendChild(card);
+    });
+  }
+
+  // ── Update task card state ────────────────────────────────────────────────
+  function updateTaskCard(taskId, state, meta) {
+    const card = document.getElementById('task-' + taskId);
+    if (!card) return;
+    card.className = 'task-card ' + state;
+    const stateEl = card.querySelector('.task-state');
+    if (stateEl) stateEl.textContent = state;
+    const metaEl = card.querySelector('.task-meta');
+    if (metaEl && meta) metaEl.textContent = meta;
+  }
+
+  // ── Render results ────────────────────────────────────────────────────────
+  function renderResults(data) {
+    const area = document.getElementById('resultArea');
+    area.innerHTML = '';
+
+    const results = data.results || data.task_results || {};
+    const keys = Object.keys(results);
+
+    if (keys.length === 0) {
+      const block = document.createElement('div');
+      block.className = 'result-block';
+      block.innerHTML = `
+        <h3>✅ Workflow Completed</h3>
+        <div class="result-content">${JSON.stringify(data, null, 2)}</div>
+      `;
+      area.appendChild(block);
+      return;
+    }
+
+    keys.forEach(key => {
+      const result = results[key];
+      const block = document.createElement('div');
+      block.className = 'result-block';
+      const content = typeof result === 'object' ? JSON.stringify(result, null, 2) : String(result);
+      block.innerHTML = `
+        <h3>📄 Task: ${key}</h3>
+        <div class="result-content">${escapeHtml(content)}</div>
+      `;
+      area.appendChild(block);
+    });
+
+    const meta = document.createElement('div');
+    meta.className = 'result-block';
+    meta.innerHTML = `
+      <h3>📊 Summary</h3>
+      <div class="result-content">Total tasks: ${taskCount}
+Completed: ${completedCount}
+Duration: ${data.total_duration_ms || '?'}ms
+Session: ${sessionId || '?'}</div>
+    `;
+    area.appendChild(meta);
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function setStatus(msg, cls) {
+    const el = document.getElementById('statusLine');
+    el.textContent = msg;
+    el.className = 'status-line ' + (cls || '');
+  }
+
+  function setProgress(pct) {
+    document.getElementById('progressBar').style.width = pct + '%';
+  }
+
+  function addLog(msg, cls) {
+    const panel = document.getElementById('logPanel');
+    const entry = document.createElement('div');
+    entry.className = 'log-entry ' + (cls || 'info');
+    const ts = new Date().toTimeString().slice(0,8);
+    entry.textContent = `[${ts}] ${msg}`;
+    panel.appendChild(entry);
+    panel.scrollTop = panel.scrollHeight;
+  }
+
+  function setExample(el) {
+    document.getElementById('goalInput').value = el.textContent;
+    document.getElementById('goalInput').focus();
+  }
+
+  function escapeHtml(text) {
+    return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // Enter key to execute
+  document.getElementById('goalInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) executeGoal();
+  });
+
+  // Start connecting
+  connect();
+</script>
+</body>
+</html>
