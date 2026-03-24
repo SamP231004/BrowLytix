@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 """
 ================================================================================
   AGENTIC OS BROWSER — CONTAINER RUNTIME
@@ -20,8 +22,6 @@
     → destroy_container()
 ================================================================================
 """
-
-# -*- coding: utf-8 -*-
 
 from __future__ import annotations
 
@@ -204,144 +204,182 @@ class ToolInstaller:
 #  TASK RUNNER SCRIPT (injected into every container)
 # ══════════════════════════════════════════════════════════════════════════════
 
-TASK_RUNNER_SCRIPT = '''#!/usr/bin/env python3
+# Uses a raw string (r''') to prevent Python from interpreting \n before writing to file
+TASK_RUNNER_SCRIPT = r'''#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 """
 ================================================================================
 AGENTIC OS — CONTAINER TASK RUNNER
 ================================================================================
-
-Generic execution runtime for nanoservice tasks.
-
-Workflow:
-1. Load /task/input.json
-2. If generated_code.py exists → execute it
-3. Otherwise fallback to lightweight handlers
-4. Write result to /task/output.json
-================================================================================
 """
 
 import json
 import os
 import subprocess
+import sys
+import re
 
 TASK_DIR = "/task"
 INPUT_FILE = os.path.join(TASK_DIR, "input.json")
 OUTPUT_FILE = os.path.join(TASK_DIR, "output.json")
 GENERATED_CODE_FILE = os.path.join(TASK_DIR, "generated_code.py")
 
-
-# ------------------------------------------------------------------------------
-# Utilities
-# ------------------------------------------------------------------------------
-
 def load_input():
     if not os.path.exists(INPUT_FILE):
-        raise FileNotFoundError("input.json not found")
-
+        raise FileNotFoundError("input.json not found inside container")
     with open(INPUT_FILE) as f:
         return json.load(f)
-
 
 def write_output(result):
     with open(OUTPUT_FILE, "w") as f:
         json.dump(result, f, indent=2)
-
+    print(json.dumps(result))
 
 def run_generated_code():
     """Execute generated Python code if present"""
     if not os.path.exists(GENERATED_CODE_FILE):
         return None
 
+    # Clean existing output file to avoid reading stale data from previous bugs
+    if os.path.exists(OUTPUT_FILE):
+        try:
+            os.remove(OUTPUT_FILE)
+        except Exception:
+            pass
+
     try:
         proc = subprocess.run(
-            ["python3", GENERATED_CODE_FILE],
+            [sys.executable, GENERATED_CODE_FILE],
             capture_output=True,
             text=True,
-            timeout=180
+            timeout=280 # Give it slightly less time than the container timeout
         )
 
         stdout = proc.stdout.strip()
         stderr = proc.stderr.strip()
 
+        # 1. Primary Check: Did the script write to OUTPUT_FILE correctly?
+        if os.path.exists(OUTPUT_FILE):
+            try:
+                with open(OUTPUT_FILE, "r") as f:
+                    file_result = json.load(f)
+                
+                # Optionally attach stdout/stderr for debugging context if they exist
+                if isinstance(file_result, dict):
+                    if stdout and "stdout" not in file_result:
+                        file_result["_stdout"] = stdout
+                    if stderr and "stderr" not in file_result:
+                        file_result["_stderr"] = stderr
+                
+                return file_result
+            except json.JSONDecodeError:
+                pass
+
+        # 2. Fallback Check: Attempt to parse stdout if no file was created
         if stdout:
             try:
+                # Try parsing the entire stdout first
                 return json.loads(stdout)
-            except Exception:
-                return {"stdout": stdout, "stderr": stderr}
+            except json.JSONDecodeError:
+                # Try extracting a JSON block if stdout contains mixed logs
+                match = re.search(r'(\{.*\}|\[.*\])', stdout, re.DOTALL)
+                if match:
+                    try:
+                        return json.loads(match.group(1))
+                    except Exception:
+                        pass
+            
+            return {
+                "stdout": stdout,
+                "stderr": stderr,
+                "returncode": proc.returncode,
+                "status": "error" if proc.returncode != 0 else "success"
+            }
+
+        # 3. Edge Case: Script succeeded but produced absolutely no output
+        if proc.returncode == 0:
+            return {
+                "error": "Generated script ran successfully but produced no output.json and no JSON in stdout.",
+                "stdout": stdout,
+                "stderr": stderr,
+                "status": "empty_success"
+            }
 
         return {
             "stdout": stdout,
             "stderr": stderr,
-            "returncode": proc.returncode
+            "returncode": proc.returncode,
+            "status": "error"
         }
 
     except subprocess.TimeoutExpired:
-        return {"error": "Generated code execution timed out"}
-
+        return {"error": "Generated code execution timed out", "status": "timeout"}
     except Exception as e:
-        return {"error": str(e)}
-
+        return {"error": str(e), "status": "failed"}
 
 # ------------------------------------------------------------------------------
-# Minimal Fallback Handlers
+# Fallback Handlers (For tasks that don't generate dynamic code)
 # ------------------------------------------------------------------------------
 
-def run_web_research(description):
-    return {
-        "task": "web_research",
-        "query": description,
-        "note": "Web research handler not implemented"
-    }
+def handle_web_research(ctx):
+    return {"error": "Native web_research handler not implemented. Provide generated_code.py.", "status": "failed"}
 
+def handle_document_generation(ctx):
+    return {"error": "Native document_generation handler not implemented. Provide generated_code.py.", "status": "failed"}
+
+def handle_reasoning(ctx):
+    return {"error": "Native reasoning handler not implemented. Provide generated_code.py.", "status": "failed"}
+
+def handle_summarisation(ctx):
+    return {"error": "Native summarisation handler not implemented. Provide generated_code.py.", "status": "failed"}
 
 # ------------------------------------------------------------------------------
 # Task Router
 # ------------------------------------------------------------------------------
 
 def execute_task(ctx):
-
     task_type = ctx.get("task_type")
-    description = ctx.get("description", "")
-
-    # FIRST: run generated code if available
+    
+    # 1. Prioritize dynamic generated code
     generated_result = run_generated_code()
     if generated_result is not None:
+        # Inject the task type into the result for continuity
+        if isinstance(generated_result, dict) and "task_type" not in generated_result:
+            generated_result["task_type"] = task_type
         return generated_result
 
-    # FALLBACK handlers
-    if task_type == "web_research":
-        return run_web_research(description)
-
-    return {
-        "task_type": task_type,
-        "status": "executed",
-        "note": "No generated code provided"
+    # 2. Route to native fallbacks if no code was provided
+    handlers = {
+        "web_research": handle_web_research,
+        "document_generation": handle_document_generation,
+        "reasoning": handle_reasoning,
+        "summarisation": handle_summarisation,
     }
 
+    if task_type in handlers:
+        return handlers[task_type](ctx)
 
-# ------------------------------------------------------------------------------
-# Entry
-# ------------------------------------------------------------------------------
+    # 3. Fail loudly if we don't know what to do
+    return {
+        "task_type": task_type,
+        "status": "failed",
+        "error": f"Task type '{task_type}' requires generated code, but none was injected."
+    }
 
 def main():
-
     try:
         ctx = load_input()
         result = execute_task(ctx)
-
     except Exception as e:
-        result = {"error": str(e)}
+        result = {"error": str(e), "status": "critical_failure"}
 
     write_output(result)
-
-    print(json.dumps(result))
-
 
 if __name__ == "__main__":
     main()
 '''
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  CONTAINER MANAGER
@@ -419,13 +457,21 @@ class ContainerManager:
             os.chmod(install_path, 0o755)
 
             # ── Step 3: LLM generates task-specific code if needed ────────────
-            if task.type.value in ("code_execution", "data_processing"):
+            if task.type.value in (
+                "code_execution", 
+                "data_processing", 
+                "document_generation", 
+                "web_research",
+                "api_call",
+                "reasoning",
+                "summarisation"
+            ):
                 generated_code = await self._generate_task_code(task, context, router)
                 if generated_code:
                     write_unix_file(
-                    tmp_path / "generated_code.py",
-                    generated_code
-                )
+                        tmp_path / "generated_code.py",
+                        generated_code
+                    )
 
             # ── Step 4: Spin up container ────────────────────────────────────
             resource_limits = TASK_RESOURCE_PROFILES.get(
@@ -504,6 +550,11 @@ class ContainerManager:
             ],
         }
 
+        # Automatically inject necessary API keys from host environment
+        for key in ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_API_KEY"]:
+            if key in os.environ:
+                config["Env"].append(f"{key}={os.environ[key]}")
+
         container: DockerContainer = await docker.containers.create(
             config=config,
             name=container_name,
@@ -533,10 +584,10 @@ class ContainerManager:
         output_path = tmp_path / "output.json"
         if output_path.exists():
             try:
-                return json.loads(output_path.read_text())
+                return json.loads(output_path.read_text(encoding="utf-8"))
             except json.JSONDecodeError as e:
                 log.warning(f"Invalid JSON in output.json: {e}")
-                return {"raw_output": output_path.read_text()[:5000]}
+                return {"raw_output": output_path.read_text(encoding="utf-8")[:5000]}
 
         # Fall back to stdout
         if log_text.strip():
@@ -545,7 +596,7 @@ class ContainerManager:
                 lines = log_text.strip().split("\n")
                 for line in reversed(lines):
                     line = line.strip()
-                    if line.startswith("{"):
+                    if line.startswith("{") or line.startswith("["):
                         return json.loads(line)
             except Exception:
                 pass
@@ -561,40 +612,51 @@ class ContainerManager:
         self, task: Any, context: Any, router: Any
     ) -> Optional[str]:
         """
-        Use LLM to generate the Python code for code_execution / data_processing tasks.
+        Use LLM to generate the Python code for tasks that need dynamic scripting.
         The generated code is saved to /task/generated_code.py inside the container.
         """
-        upstream_summary = json.dumps(
-            {k: str(v)[:300] for k, v in context.upstream_results.items()},
-            indent=2
-        )
-        prompt = f"""Write clean, executable Python 3 code for this task:
+        prompt = f"""Write clean, executable Python 3 code to solve this task.
 
 Task: {task.description}
 Tools available: {task.tools_required}
-Upstream data:
-{upstream_summary}
 
-RULES:
-- Write ONLY the Python code. No markdown. No explanation.
-- Save final output as: result = {{...}}
-- Print the result as JSON at the end: import json; print(json.dumps(result, default=str))
-- Handle exceptions gracefully
-- Use only the specified tools"""
+CRITICAL RULES:
+1. PREVENT TRUNCATION & SYNTAX ERRORS: DO NOT hardcode large text blocks, documents, or massive dictionaries directly in the script. Your generation will be cut off, causing a `SyntaxError: unterminated string literal`.
+2. Read your context and upstream data dynamically from `/task/input.json`.
+   Example:
+   import json
+   with open('/task/input.json') as f:
+       payload = json.load(f)
+       upstream_data = payload.get('upstream_results', {{}})
+3. If the task requires creating a report, write a script that constructs it algorithmically or calls an external API. Do not write the final report text inside the code itself.
+4. Write ONLY the Python code. No markdown. No explanation.
+5. Catch exceptions gracefully so the script does not crash.
+6. You MUST save your final result as a JSON file to `/task/output.json`. Do NOT just print it.
+   Example:
+   import json
+   with open('/task/output.json', 'w') as f:
+       json.dump({{"result": "your final output here"}}, f)
+"""
 
         try:
             code = await router.call_llm(
                 prompt=prompt,
                 task_type=task.type.value,
                 model_preference=task.preferred_llm.value,
-                max_tokens=3000,
+                max_tokens=8000, # Increased from 3000 to prevent code cut-offs
                 temperature=0.1,
             )
             # Strip markdown fences if present
             code = code.strip()
             if code.startswith("```"):
                 lines = code.split("\n")
-                code = "\n".join(lines[1:-1] if lines[-1] == "```" else lines[1:])
+                if lines[-1].strip() == "```":
+                    code = "\n".join(lines[1:-1])
+                else:
+                    code = "\n".join(lines[1:])
+            # Quick cleanup for cases where LLM prefixes with python without backticks
+            if code.startswith("python\n"):
+                code = code[7:]
             return code
         except Exception as e:
             log.warning(f"Code generation failed for task {task.id}: {e}")
